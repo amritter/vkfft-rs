@@ -14,3 +14,4 @@ description = "Rust bindings for VkFFT"
 [build-dependencies]
 bindgen = "0.58"
 cc = "1.0"
+pkg-config = "0.3.30"

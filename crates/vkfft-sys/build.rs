@@ -6,22 +6,23 @@ use std::path::{Path, PathBuf};
 
 use bindgen::Bindings;
 
-fn build_lib<O, LD, L, const N: usize, const M: usize>(out_dir: O, library_dirs: LD, libraries: L, defines: &[(&str, &str); N], include_dirs: &[String; M]) -> Result<(), Box<dyn Error>>
+fn build_lib<O, LD, L, const N: usize, const M: usize>(
+  out_dir: O,
+  library_dirs: LD,
+  libraries: L,
+  defines: &[(&str, &str); N],
+  include_dirs: &[String; M],
+) -> Result<(), Box<dyn Error>>
 where
   O: AsRef<Path>,
   LD: Iterator,
   LD::Item: AsRef<str>,
   L: Iterator,
-  L::Item: AsRef<str>
+  L::Item: AsRef<str>,
 {
   let mut build = cc::Build::default();
 
-  build
-    .cpp(true)
-    .file("wrapper.cpp")
-    .include(out_dir)
-    .flag("-std=c++11")
-    .flag("-w");
+  build.file("wrapper.c").include(out_dir).flag("-w");
 
   for library_dir in library_dirs {
     build.flag(format!("-L{}", library_dir.as_ref()).as_str());
@@ -31,49 +32,44 @@ where
     build.flag(format!("-l{}", library.as_ref()).as_str());
   }
 
-  build
-    .cargo_metadata(true)
-    .static_flag(true);
-  
+  build.cargo_metadata(true).static_flag(true);
+
   for (key, value) in defines.iter() {
     build.define(*key, Some(*value));
   }
-  
+
   for include_dir in include_dirs.iter() {
     build.include(include_dir);
   }
 
-  
   build.compile("vkfft");
 
   Ok(())
 }
 
-fn gen_wrapper<F, const N: usize, const M: usize>(file: F,  defines: &[(&str, &str); N], include_dirs: &[String; M]) -> Result<Bindings, Box<dyn Error>>
+fn gen_wrapper<F, const N: usize, const M: usize>(
+  file: F,
+  defines: &[(&str, &str); N],
+  include_dirs: &[String; M],
+) -> Result<Bindings, Box<dyn Error>>
 where
   F: AsRef<Path>,
 {
-  let base_args = [
-    "-std=c++11".to_string(),
-  ];
-  
-  let defines: Vec<String> = defines.iter().map(|(k, v)| {
-    format!("-D{}={}", k, v)
-  }).collect();
+  let base_args = [];
 
-  let include_dirs: Vec<String> = include_dirs.iter()
-    .map(|s| format!("-I{}", s))
+  let defines: Vec<String> = defines
+    .iter()
+    .map(|(k, v)| format!("-D{}={}", k, v))
     .collect();
 
-  let clang_args = base_args 
+  let include_dirs: Vec<String> = include_dirs.iter().map(|s| format!("-I{}", s)).collect();
+
+  let clang_args = base_args
     .iter()
     .chain(defines.iter())
     .chain(include_dirs.iter());
 
   println!("{:?}", clang_args);
-
-  
-
 
   let res = bindgen::Builder::default()
     .clang_args(clang_args)
@@ -94,9 +90,8 @@ where
     .allowlist_function("initializeVkFFT")
     .allowlist_function("deleteVkFFT")
     .allowlist_function("VkFFTGetVersion")
-    
     .generate();
-  
+
   let bindings = match res {
     Ok(x) => x,
     Err(_) => {
@@ -109,16 +104,26 @@ where
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-  let vkfft_root = std::env::var("VKFFT_ROOT")?;
-  let out_dir = std::env::var("OUT_DIR")?;
-  let out_dir = PathBuf::from(out_dir);
+  let vulkan_library = pkg_config::Config::new()
+    .atleast_version("1.3.280")
+    .probe("vulkan")?;
 
-  let library_dirs = [
-    format!("{}/build/glslang-main/glslang", vkfft_root),
-    format!("{}/build/glslang-main/glslang/OSDependent/Unix", vkfft_root),
-    format!("{}/build/glslang-main/glslang/OGLCompilersDLL", vkfft_root),
-    format!("{}/build/glslang-main/SPIRV", vkfft_root),
-  ];
+  if vulkan_library.include_paths.len() != 1 {
+    panic!("No vulkan include information")
+  }
+  let vulkan_include_dir = vulkan_library.include_paths[0].clone();
+  let glslang_include_dir = vulkan_include_dir.join("glslang").join("Include");
+
+  let cargo_manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?);
+  let vkfft_include_dir = cargo_manifest_dir.join("VkFFT").join("vkFFT");
+
+  let out_dir = PathBuf::from(std::env::var("OUT_DIR")?);
+
+  let library_dirs: Vec<_> = vulkan_library
+    .link_paths
+    .iter()
+    .map(|p| p.to_string_lossy())
+    .collect();
 
   let libraries = [
     "glslang",
@@ -127,7 +132,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     "GenericCodeGen",
     "OGLCompiler",
     "vulkan",
-    "SPIRV"
+    "SPIRV",
   ];
 
   for library_dir in library_dirs.iter() {
@@ -138,30 +143,32 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rustc-link-lib={}", library);
   }
 
-
-  println!("cargo:rerun-if-changed=wrapper.cpp");
+  println!("cargo:rerun-if-changed=wrapper.c");
   println!("cargo:rerun-if-changed=build.rs");
 
   let include_dirs = [
-    format!("{}/vkFFT", &vkfft_root),
-    format!("{}/glslang-main/glslang/Include", vkfft_root)
+    vkfft_include_dir.to_string_lossy().to_string(),
+    glslang_include_dir.to_string_lossy().to_string(),
   ];
 
-  let defines = [
-    ("VKFFT_BACKEND", "0"),
-    ("VK_API_VERSION", "11")
-  ];
+  let defines = [("VKFFT_BACKEND", "0"), ("VK_API_VERSION", "11")];
 
-  let wrapper = std::fs::read_to_string(format!("{}/vkFFT/vkFFT.h", vkfft_root))?
-    .replace("static inline", "");
+  let wrapper =
+    std::fs::read_to_string(vkfft_include_dir.join("vkFFT.h"))?.replace("static inline", "");
 
-  let rw = out_dir.join("vkfft_rw.hpp");
+  let rw = out_dir.join("vkfft_rw.h");
   std::fs::write(&rw, wrapper.as_str())?;
 
-  build_lib(&out_dir, library_dirs.iter(), libraries.iter(), &defines, &include_dirs)?;
+  build_lib(
+    &out_dir,
+    library_dirs.iter(),
+    libraries.iter(),
+    &defines,
+    &include_dirs,
+  )?;
 
   let bindings = gen_wrapper(&rw, &defines, &include_dirs)?;
   bindings.write_to_file(out_dir.join("bindings.rs"))?;
-  
+
   Ok(())
 }
