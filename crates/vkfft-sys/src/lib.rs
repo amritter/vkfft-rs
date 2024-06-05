@@ -5,6 +5,10 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
+pub mod consts {
+  include!(concat!(env!("OUT_DIR"), "/consts.rs"));
+}
+
 #[cfg(test)]
 mod test {
   #[test]
