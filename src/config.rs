@@ -2,14 +2,7 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error};
 use std::pin::Pin;
-use vulkano::{
-  buffer::BufferAccess,
-  command_buffer::pool::UnsafeCommandPool,
-  device::{Device, Queue},
-  instance::PhysicalDevice,
-  sync::Fence,
-  SynchronizedVulkanObject, VulkanHandle, VulkanObject,
-};
+use vulkano::{buffer::Buffer, command_buffer::pool::CommandPool, device::{physical::PhysicalDevice, Device, Queue}, sync::fence::Fence, VulkanObject};
 
 use std::ptr::addr_of_mut;
 
@@ -33,7 +26,7 @@ pub struct ConfigBuilder<'a> {
   device: Option<Arc<Device>>,
   queue: Option<Arc<Queue>>,
   fence: Option<&'a Fence>,
-  command_pool: Option<Arc<UnsafeCommandPool>>,
+  command_pool: Option<Arc<CommandPool>>,
   buffer: Option<BufferDesc>,
   input_buffer: Option<BufferDesc>,
   output_buffer: Option<BufferDesc>,
@@ -121,7 +114,7 @@ impl<'a> ConfigBuilder<'a> {
     self
   }
 
-  pub fn command_pool(mut self, command_pool: Arc<UnsafeCommandPool>) -> Self {
+  pub fn command_pool(mut self, command_pool: Arc<CommandPool>) -> Self {
     self.command_pool = Some(command_pool);
     self
   }
@@ -344,10 +337,10 @@ pub enum Precision {
   HalfMemory,
 }
 
-pub enum BufferDesc {
-  Buffer(Arc<dyn BufferAccess>),
-  BufferSize(usize),
-}
+// pub enum BufferDesc {
+//   Buffer(Arc<dyn BufferAccess>),
+//   BufferSize(usize),
+//}
 
 impl<T> From<Arc<T>> for BufferDesc
 where
@@ -395,7 +388,7 @@ pub struct Config<'a> {
   pub device: Arc<Device>,
   pub queue: Arc<Queue>,
   pub fence: &'a Fence,
-  pub command_pool: Arc<UnsafeCommandPool>,
+  pub command_pool: Arc<CommandPool>,
 
   pub buffer: Option<BufferDesc>,
   pub input_buffer: Option<BufferDesc>,
@@ -460,7 +453,7 @@ pub enum ConfigError {
 pub(crate) struct KeepAlive {
   pub device: Arc<Device>,
   pub queue: Arc<Queue>,
-  pub command_pool: Arc<UnsafeCommandPool>,
+  pub command_pool: Arc<CommandPool>,
 
   pub buffer: Option<Arc<dyn BufferAccess>>,
   pub input_buffer: Option<Arc<dyn BufferAccess>>,
@@ -469,25 +462,34 @@ pub(crate) struct KeepAlive {
   pub kernel: Option<Arc<dyn BufferAccess>>,
 }
 
+pub type PhysicalDeviceHandle = <vulkano::device::physical::PhysicalDevice as VulkanObject>::Handle;
+pub type DeviceHandle = <vulkano::device::Device as VulkanObject>::Handle;
+pub type QueueHandle = <vulkano::device::Queue as VulkanObject>::Handle;
+pub type CommandBufferHandle = <vulkano::command_buffer::sys::UnsafeCommandBuffer as VulkanObject>::Handle;
+pub type CommandPoolHandle = <vulkano::command_buffer::pool::CommandPool as VulkanObject>::Handle;
+pub type BufferHandle = <vulkano::buffer::Buffer as VulkanObject>::Handle;
+pub type FenceHandle = <vulkano::sync::fence::Fence as VulkanObject>::Handle;
+
+
 #[repr(C)]
 pub(crate) struct ConfigGuard {
   pub(crate) keep_alive: KeepAlive,
   pub(crate) config: vkfft_sys::VkFFTConfiguration,
-  pub(crate) physical_device: vk_sys::PhysicalDevice,
-  pub(crate) device: vk_sys::Device,
-  pub(crate) queue: vk_sys::Queue,
-  pub(crate) command_pool: vk_sys::CommandPool,
-  pub(crate) fence: vk_sys::Fence,
+  pub(crate) physical_device: PhysicalDeviceHandle,
+  pub(crate) device: DeviceHandle,
+  pub(crate) queue: QueueHandle,
+  pub(crate) command_pool: CommandPoolHandle,
+  pub(crate) fence: FenceHandle,
   pub(crate) buffer_size: u64,
-  pub(crate) buffer: Option<vk_sys::Buffer>,
+  pub(crate) buffer: Option<<Buffer as VulkanObject>::Handle>,
   pub(crate) input_buffer_size: u64,
-  pub(crate) input_buffer: Option<vk_sys::Buffer>,
+  pub(crate) input_buffer: Option<BufferHandle>,
   pub(crate) output_buffer_size: u64,
-  pub(crate) output_buffer: Option<vk_sys::Buffer>,
+  pub(crate) output_buffer: Option<BufferHandle>,
   pub(crate) temp_buffer_size: u64,
-  pub(crate) temp_buffer: Option<vk_sys::Buffer>,
+  pub(crate) temp_buffer: Option<BufferHandle>,
   pub(crate) kernel_size: u64,
-  pub(crate) kernel: Option<vk_sys::Buffer>,
+  pub(crate) kernel: Option<BufferHandle>,
 }
 
 impl<'a> Config<'a> {

@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
 use error::check_error;
-use vulkano::{buffer::BufferAccess, VulkanHandle, VulkanObject};
+use vulkano::{VulkanObject};
 
 use crate::{
-  config::{Config, ConfigGuard},
+  config::{BufferHandle, CommandBufferHandle, Config, ConfigGuard},
   error,
 };
 
 use std::pin::Pin;
-use vk_sys as vk;
 
 use std::ptr::addr_of_mut;
 
@@ -35,7 +34,7 @@ pub enum LaunchError {
 }
 
 pub struct LaunchParamsBuilder {
-  command_buffer: Option<vk::CommandBuffer>,
+  command_buffer: Option<CommandBufferHandle>,
   buffer: Option<Arc<dyn BufferAccess>>,
   temp_buffer: Option<Arc<dyn BufferAccess>>,
   input_buffer: Option<Arc<dyn BufferAccess>>,
@@ -57,7 +56,7 @@ impl LaunchParamsBuilder {
 
   pub fn command_buffer<C>(mut self, command_buffer: &C) -> Self
   where
-    C: VulkanObject<Object = vk::CommandBuffer>,
+    C: VulkanObject<Handle = CommandBufferHandle>,
   {
     self.command_buffer = Some(command_buffer.internal_object());
     self
@@ -108,16 +107,16 @@ impl LaunchParamsBuilder {
 #[repr(C)]
 pub(crate) struct LaunchParamsGuard {
   pub(crate) params: vkfft_sys::VkFFTLaunchParams,
-  pub(crate) command_buffer: vk_sys::CommandBuffer,
-  pub(crate) buffer: Option<vk_sys::Buffer>,
-  pub(crate) temp_buffer: Option<vk_sys::Buffer>,
-  pub(crate) input_buffer: Option<vk_sys::Buffer>,
-  pub(crate) output_buffer: Option<vk_sys::Buffer>,
-  pub(crate) kernel: Option<vk_sys::Buffer>,
+  pub(crate) command_buffer: CommandBufferHandle,
+  pub(crate) buffer: Option<BufferHandle>,
+  pub(crate) temp_buffer: Option<BufferHandle>,
+  pub(crate) input_buffer: Option<BufferHandle>,
+  pub(crate) output_buffer: Option<BufferHandle>,
+  pub(crate) kernel: Option<BufferHandle>,
 }
 
 pub struct LaunchParams {
-  pub command_buffer: vk::CommandBuffer,
+  pub command_buffer: CommandBufferHandle,
   pub buffer: Option<Arc<dyn BufferAccess>>,
   pub temp_buffer: Option<Arc<dyn BufferAccess>>,
   pub input_buffer: Option<Arc<dyn BufferAccess>>,
@@ -246,10 +245,9 @@ impl App {
 
 impl Drop for App {
   fn drop(&mut self) {
-    use vkfft_sys::*;
 
-    unsafe {
-      vkfft_delete(std::ptr::addr_of_mut!(self.app));
+    unsafe { 
+      vkfft_sys::vkfft_delete(std::ptr::addr_of_mut!(self.app));
     }
   }
 }
