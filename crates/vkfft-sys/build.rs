@@ -2,19 +2,17 @@ extern crate bindgen;
 extern crate cc;
 
 use std::error::Error;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use bindgen::Bindings;
 
-fn build_lib<O, LD, L, const N: usize, const M: usize>(
-  out_dir: O,
+fn build_lib<LD, L, const N: usize, const M: usize>(
   library_dirs: LD,
   libraries: L,
   defines: &[(&str, &str); N],
   include_dirs: &[String; M],
 ) -> Result<(), Box<dyn Error>>
 where
-  O: AsRef<Path>,
   LD: Iterator,
   LD::Item: AsRef<str>,
   L: Iterator,
@@ -22,7 +20,7 @@ where
 {
   let mut build = cc::Build::default();
 
-  build.file("wrapper.c").include(out_dir).flag("-w");
+  build.file("wrapper.c").flag("-w");
 
   for library_dir in library_dirs {
     build.flag(format!("-L{}", library_dir.as_ref()).as_str());
@@ -47,13 +45,11 @@ where
   Ok(())
 }
 
-fn gen_wrapper<F, const N: usize, const M: usize>(
-  file: F,
+fn gen_wrapper<const N: usize, const M: usize>(
   defines: &[(&str, &str); N],
   include_dirs: &[String; M],
 ) -> Result<Bindings, Box<dyn Error>>
 where
-  F: AsRef<Path>,
 {
   let base_args = [];
 
@@ -74,7 +70,7 @@ where
   let res = bindgen::Builder::default()
     .clang_args(clang_args)
     .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-    .header(file.as_ref().to_str().unwrap())
+    .header("wrapper.h")
     .allowlist_recursively(true)
     .allowlist_type("VkFFTConfiguration")
     .allowlist_type("VkFFTLaunchParams")
@@ -84,12 +80,12 @@ where
     .allowlist_type("VkFFTAxis")
     .allowlist_type("VkFFTPlan")
     .allowlist_type("VkFFTApplication")
-    .allowlist_function("VkFFTSync")
-    .allowlist_function("VkFFTAppend")
-    .allowlist_function("VkFFTPlanAxis")
-    .allowlist_function("initializeVkFFT")
-    .allowlist_function("deleteVkFFT")
-    .allowlist_function("VkFFTGetVersion")
+    .allowlist_function("vkfft_sync")
+    .allowlist_function("vkfft_append")
+    .allowlist_function("vkfft_plan_axis")
+    .allowlist_function("vkfft_initialize")
+    .allowlist_function("vkfft_delete")
+    .allowlist_function("vkfft_get_version")
     .generate();
 
   let bindings = match res {
@@ -127,10 +123,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   let libraries = [
     "glslang",
-    "MachineIndependent",
-    "OSDependent",
-    "GenericCodeGen",
-    "OGLCompiler",
     "vulkan",
     "SPIRV",
   ];
@@ -153,21 +145,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
   let defines = [("VKFFT_BACKEND", "0"), ("VK_API_VERSION", "11")];
 
-  let wrapper =
-    std::fs::read_to_string(vkfft_include_dir.join("vkFFT.h"))?.replace("static inline", "");
-
-  let rw = out_dir.join("vkfft_rw.h");
-  std::fs::write(&rw, wrapper.as_str())?;
-
   build_lib(
-    &out_dir,
     library_dirs.iter(),
     libraries.iter(),
     &defines,
     &include_dirs,
   )?;
 
-  let bindings = gen_wrapper(&rw, &defines, &include_dirs)?;
+  let bindings = gen_wrapper(&defines, &include_dirs)?;
   bindings.write_to_file(out_dir.join("bindings.rs"))?;
 
   Ok(())
