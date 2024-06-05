@@ -20,7 +20,7 @@ where
 {
   let mut build = cc::Build::default();
 
-  build.file("wrapper.c").flag("-w");
+  build.file("wrapper.cpp").flag("-w").cpp(true).std("c++17");
 
   for library_dir in library_dirs {
     build.flag(format!("-L{}", library_dir.as_ref()).as_str());
@@ -99,16 +99,18 @@ where
   Ok(bindings)
 }
 
-const VKFFT_MAX_FFT_DIMENSIONS_DEFAULT:usize = 4;
+const VKFFT_MAX_FFT_DIMENSIONS_DEFAULT: usize = 4;
 
 fn main() -> Result<(), Box<dyn Error>> {
   let vkfft_max_fft_dimensions = match std::env::var("VKFFT_MAX_FFT_DIMENSIONS") {
     Ok(env_var) => usize::from_str_radix(&env_var, 10)?,
     Err(_) => VKFFT_MAX_FFT_DIMENSIONS_DEFAULT,
-
   };
 
-  println!("cargo::rustc-env=VKFFT_MAX_FFT_DIMENSIONS={}", vkfft_max_fft_dimensions);
+  println!(
+    "cargo::rustc-env=VKFFT_MAX_FFT_DIMENSIONS={}",
+    vkfft_max_fft_dimensions
+  );
 
   let vulkan_library = pkg_config::Config::new()
     .atleast_version("1.3.280")
@@ -170,7 +172,10 @@ fn main() -> Result<(), Box<dyn Error>> {
   let bindings = gen_wrapper(&defines, &include_dirs)?;
   bindings.write_to_file(out_dir.join("bindings.rs"))?;
 
-  let consts = format!("pub const VKFFT_MAX_FFT_DIMENSIONS: usize = {};", vkfft_max_fft_dimensions);
+  let consts = format!(
+    "pub const VKFFT_MAX_FFT_DIMENSIONS: usize = {};",
+    vkfft_max_fft_dimensions
+  );
   std::fs::write(out_dir.join("consts.rs"), consts)?;
 
   Ok(())
