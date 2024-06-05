@@ -198,13 +198,13 @@ impl App {
       config: sys_config,
     });
 
-    check_error(unsafe { initializeVkFFT(std::ptr::addr_of_mut!(res.app), res.config.config) })?;
+    check_error(unsafe { vkfft_initialize(std::ptr::addr_of_mut!(res.app), res.config.config) })?;
 
     Ok(res)
   }
 
   pub fn launch(&mut self, params: &mut LaunchParams, inverse: bool) -> error::Result<()> {
-    use vkfft_sys::VkFFTAppend;
+    use vkfft_sys::vkfft_append;
 
     let mut params = params.as_sys();
 
@@ -225,7 +225,7 @@ impl App {
     }
 
     check_error(unsafe {
-      VkFFTAppend(
+      vkfft_append(
         std::ptr::addr_of_mut!(self.app),
         if inverse { 1 } else { -1 },
         std::ptr::addr_of_mut!(params.params),
@@ -249,7 +249,7 @@ impl Drop for App {
     use vkfft_sys::*;
 
     unsafe {
-      deleteVkFFT(std::ptr::addr_of_mut!(self.app));
+      vkfft_delete(std::ptr::addr_of_mut!(self.app));
     }
   }
 }

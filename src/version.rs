@@ -30,7 +30,7 @@ impl Display for Version {
 }
 
 pub fn version() -> Version {
-  let ver = unsafe { vkfft_sys::VkFFTGetVersion() };
+  let ver = unsafe { vkfft_sys::vkfft_get_version() };
 
   Version {
     major: (ver / 10000) as u32,
