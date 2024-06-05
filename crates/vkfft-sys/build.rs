@@ -131,7 +131,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     .map(|p| p.to_string_lossy())
     .collect();
 
-  let libraries = ["glslang", "vulkan", "SPIRV"];
+  let libraries = [
+    "glslang",
+    "MachineIndependent",
+    "OSDependent",
+    "GEnericCOdeGen",
+    "vulkan",
+    "SPIRV",
+    "SPIRV-Tools",
+    "SPIRV-Tools-opt",
+  ];
 
   for library_dir in library_dirs.iter() {
     println!("cargo:rustc-link-search={}", library_dir);
