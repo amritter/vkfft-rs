@@ -152,7 +152,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rustc-link-lib={}", library);
   }
 
-  println!("cargo:rerun-if-changed=wrapper.c");
+  println!("cargo:rerun-if-changed=wrapper.h");
+  println!("cargo:rerun-if-changed=wrapper.cpp");
   println!("cargo:rerun-if-changed=build.rs");
 
   let include_dirs = [
